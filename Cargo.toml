@@ -1,0 +1,22 @@
+[package]
+name = "autoclicker"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+default = []
+sound = ["rodio"]
+
+[dependencies]
+# Querying and Submitting Mouse/Keyboard key presses.
+mouse-rs = "0.4"
+device_query = "1.1"
+
+# Colored text
+colored = "2.0"
+
+# Play sounds
+rodio = { version = "0.15.0", optional = true }
+
+# For getting the active window and it's title. (Also used in device_query)
+winapi = "0.3"
