@@ -1,7 +1,9 @@
 mod util;
+mod mouse;
 
-use mouse_rs::{Mouse, types::keys::Keys as MouseButton};
-use device_query::{DeviceState, Keycode, DeviceEvents};
+use mouse::{Mouse, Button as MouseButton};
+
+use device_query::{DeviceState, Keycode, DeviceQuery};
 use colored::Colorize;
 
 use std::{
@@ -13,17 +15,17 @@ use std::{
 };
 
 /// How often to check if we've started autoclicking in the autoclick thread.
-static THREAD_TIME: Duration = Duration::from_millis(300);
-static CLICK_DELAY: Duration = Duration::from_millis(100);
+const THREAD_TIME: Duration = Duration::from_millis(300);
+const CLICK_DELAY: Duration = Duration::from_millis(700);
+const CHECK_TIME: Duration = Duration::from_millis(50);
 
 #[inline]
 fn is_in_game() -> bool {
 	util::get_active_window().contains("Minecraft")
 }
-
 fn main() {
 	let state = DeviceState::new();
-	let autoclicking = Arc::new( AtomicBool::new(false) );
+	let mut autoclicking = Arc::new( AtomicBool::new(false) );
 
 	let autoclicking_thread = Arc::clone(&autoclicking);
 	std::thread::spawn(move || {
@@ -38,7 +40,7 @@ fn main() {
 					break;
 				}
 
-				let _ = mouse.click(&MouseButton::LEFT);
+				mouse.click(MouseButton::LEFT);
 				std::thread::sleep(CLICK_DELAY);
 			}
 
@@ -46,8 +48,9 @@ fn main() {
 		}
 	});
 
-	// Make sure not to discard this callback guard (or else it won't work since rust will drop it immediately.)
-	let _guard = state.on_key_down(move |key| {
+	let mut last = None;
+
+	fn handle_key(key: Keycode, autoclicking: &mut Arc<AtomicBool>) {
 		match key {
 			Keycode::LShift => {
 				let is_autoclicking = !autoclicking.load(Ordering::Acquire);
@@ -81,7 +84,28 @@ fn main() {
 			},
 			_ => ()
 		}
-	});
+	}
 
-	loop {}
+	loop {
+		let keys = state.get_keys();
+
+		match last {
+			None => {
+				last = Some(keys);
+			},
+			Some(ref last_inner) if last_inner == &keys => (),
+			Some(ref last_inner) => {
+				let mut diff = keys.clone();
+				diff.retain(|x| !last_inner.contains(x));
+
+				for k in diff {
+					handle_key(k, &mut autoclicking);
+				}
+
+				last = Some(keys);
+			}
+		}
+
+		std::thread::sleep(CHECK_TIME);
+	}
 }
